@@ -1,65 +1,117 @@
-import Image from "next/image";
+import { prisma } from "@/lib/db";
+import { formatCurrency } from "@/lib/utils";
+import Link from "next/link";
+import { Receipt, CalendarCheck, BookOpen, TrendingUp } from "lucide-react";
 
-export default function Home() {
+export default async function DashboardPage() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  const paidToday = await prisma.bill.findMany({
+    where: { issuedAt: { gte: today, lt: tomorrow } },
+  });
+  const openOrders = await prisma.order.count({ where: { status: "OPEN" } });
+  const todayBookings = await prisma.booking.count({
+    where: { date: { gte: today, lt: tomorrow }, status: "CONFIRMED" },
+  });
+  const upcomingBookings = await prisma.booking.findMany({
+    where: { date: { gte: today }, status: "CONFIRMED" },
+    orderBy: { date: "asc" },
+    take: 5,
+    include: { table: true },
+  });
+
+  const totalRevenue = paidToday.reduce(
+    (sum, b) => sum + parseFloat(String(b.total)),
+    0
+  );
+
+  const stats = [
+    {
+      label: "Today's Revenue",
+      value: `Rs. ${formatCurrency(totalRevenue)}`,
+      icon: TrendingUp,
+      color: "text-green-600",
+    },
+    { label: "Open Orders", value: openOrders.toString(), icon: Receipt, color: "text-orange-600" },
+    { label: "Today's Bookings", value: todayBookings.toString(), icon: CalendarCheck, color: "text-blue-600" },
+    { label: "Menu Items", value: (await prisma.menuItem.count()).toString(), icon: BookOpen, color: "text-purple-600" },
+  ];
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div className="p-6">
+      <h1 className="mb-6 text-2xl font-bold">Dashboard</h1>
+
+      <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {stats.map((stat) => {
+          const Icon = stat.icon;
+          return (
+            <div key={stat.label} className="rounded-xl border bg-card p-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">{stat.label}</p>
+                  <p className="mt-1 text-2xl font-bold">{stat.value}</p>
+                </div>
+                <Icon className={`h-8 w-8 ${stat.color}`} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="mb-8 flex gap-3">
+        <Link href="/billing">
+          <button className="flex items-center gap-2 rounded-lg bg-primary px-6 py-3 text-sm font-medium text-primary-foreground transition hover:bg-primary/90">
+            <Receipt size={18} />
+            New Order
+          </button>
+        </Link>
+        <Link href="/bookings">
+          <button className="flex items-center gap-2 rounded-lg border border-border bg-background px-6 py-3 text-sm font-medium transition hover:bg-muted">
+            <CalendarCheck size={18} />
+            View Bookings
+          </button>
+        </Link>
+        <Link href="/menu">
+          <button className="flex items-center gap-2 rounded-lg border border-border bg-background px-6 py-3 text-sm font-medium transition hover:bg-muted">
+            <BookOpen size={18} />
+            Manage Menu
+          </button>
+        </Link>
+      </div>
+
+      {upcomingBookings.length > 0 && (
+        <div className="rounded-xl border bg-card">
+          <div className="border-b px-5 py-4">
+            <h2 className="text-lg font-semibold">Upcoming Bookings</h2>
+          </div>
+          <div className="divide-y">
+            {upcomingBookings.map((booking) => (
+              <div key={booking.id} className="flex items-center justify-between px-5 py-3">
+                <div>
+                  <p className="font-medium">{booking.guestName}</p>
+                  <p className="text-sm text-muted-foreground">
+                    Party of {booking.guestCount} &middot; Table {booking.table.number}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-medium">
+                    {new Date(booking.date).toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {new Date(booking.date).toLocaleDateString()}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+      )}
     </div>
   );
 }
