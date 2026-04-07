@@ -60,15 +60,26 @@ export default function MenuPage() {
     setLoading(true);
     try {
       const [itemsRes, catRes] = await Promise.all([
-        fetch("/api/menu-items"),
-        fetch("/api/categories"),
+        fetch("/api/menu-items", { cache: "no-store" }),
+        fetch("/api/categories", { cache: "no-store" }),
       ]);
-      const itemsData = await itemsRes.json();
-      const catData = await catRes.json();
+      if (!itemsRes.ok || !catRes.ok) {
+        let errMsg = "";
+        if (!itemsRes.ok) {
+          const errJson = await itemsRes.json().catch(() => ({}));
+          errMsg = errJson.error || `menu items fetch failed (${itemsRes.status})`;
+        } else {
+          const errJson = await catRes.json().catch(() => ({}));
+          errMsg = errJson.error || `categories fetch failed (${catRes.status})`;
+        }
+        throw new Error(errMsg);
+      }
+      const [itemsData, catData] = await Promise.all([itemsRes.json(), catRes.json()]);
       setItems(itemsData.items || []);
       setCategories(catData.categories || []);
-    } catch (e) {
-      toast.error("Failed to load menu data");
+    } catch (e: any) {
+      console.error("fetchData error:", e);
+      toast.error(e.message || "Failed to load menu data");
     } finally {
       setLoading(false);
     }

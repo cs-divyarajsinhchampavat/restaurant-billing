@@ -48,11 +48,16 @@ export default function TablesPage() {
   async function fetchData() {
     setLoading(true);
     try {
-      const res = await fetch("/api/tables");
+      const res = await fetch("/api/tables", { cache: "no-store" });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Failed to load tables (${res.status})`);
+      }
       const data = await res.json();
       setTables(data.tables || []);
-    } catch {
-      toast.error("Failed to load tables");
+    } catch (e: any) {
+      console.error("fetchData error:", e);
+      toast.error(e.message || "Failed to load tables");
     } finally {
       setLoading(false);
     }
@@ -104,13 +109,16 @@ export default function TablesPage() {
             capacity: parseInt(formCapacity),
           }),
         });
-        if (!res.ok) throw new Error();
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || "Failed to add table");
+        }
         toast.success("Table added");
       }
       setDialogOpen(false);
       fetchData();
-    } catch {
-      toast.error("Something went wrong");
+    } catch (e: any) {
+      toast.error(e.message);
     }
   }
 
