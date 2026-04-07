@@ -67,18 +67,32 @@ export default function BillingPage() {
     setLoading(true);
     try {
       const [itemsRes, tablesRes, catRes] = await Promise.all([
-        fetch("/api/menu-items?available=true"),
-        fetch("/api/tables"),
-        fetch("/api/categories"),
+        fetch("/api/menu-items?available=true", { cache: "no-store" }),
+        fetch("/api/tables", { cache: "no-store" }),
+        fetch("/api/categories", { cache: "no-store" }),
       ]);
-      const itemsData = await itemsRes.json();
-      const tablesData = await tablesRes.json();
-      const catData = await catRes.json();
+      if (!itemsRes.ok || !tablesRes.ok || !catRes.ok) {
+        let errMsg = "";
+        for (const r of [itemsRes, tablesRes, catRes]) {
+          if (!r.ok) {
+            const errJson = await r.json().catch(() => ({}));
+            errMsg = errJson.error || `fetch failed (${r.status})`;
+            break;
+          }
+        }
+        throw new Error(errMsg);
+      }
+      const [itemsData, tablesData, catData] = await Promise.all([
+        itemsRes.json(),
+        tablesRes.json(),
+        catRes.json(),
+      ]);
       setItems(itemsData.items || []);
       setTables(tablesData.tables || []);
       setCategories(catData.categories || []);
-    } catch {
-      toast.error("Failed to load data");
+    } catch (e: any) {
+      console.error("fetchData error:", e);
+      toast.error(e.message || "Failed to load data");
     } finally {
       setLoading(false);
     }
