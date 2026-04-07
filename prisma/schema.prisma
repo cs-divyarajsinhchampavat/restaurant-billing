@@ -83,6 +83,7 @@ model Order {
   tableId       String?
   table         Table?        @relation(fields: [tableId], references: [id], onDelete: SetNull)
   orderNumber   Int           @unique @default(autoincrement())
+  orderType     OrderType     @default(DINE_IN)
   status        OrderStatus   @default(OPEN)
   subtotal      Decimal       @db.Decimal(10, 2) @default(0)
   tax           Decimal       @db.Decimal(10, 2) @default(0)
@@ -98,6 +99,11 @@ model Order {
 
   @@index([status])
   @@index([tableId])
+}
+
+enum OrderType {
+  DINE_IN
+  TAKE_AWAY
 }
 
 enum OrderStatus {

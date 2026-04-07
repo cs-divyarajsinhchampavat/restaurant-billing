@@ -12,6 +12,7 @@ interface OrderState {
   orderId: string | null;
   orderNumber: number | null;
   tableId: string | null;
+  orderType: "DINE_IN" | "TAKE_AWAY";
   items: OrderItemData[];
   taxRate: number;
   discount: number;
@@ -21,6 +22,7 @@ interface OrderState {
   setOrderId: (id: string) => void;
   setOrderNumber: (num: number) => void;
   setTableId: (id: string | null) => void;
+  setOrderType: (type: "DINE_IN" | "TAKE_AWAY") => void;
   addItem: (item: { menuItemId: string; name: string; price: number }) => void;
   removeItem: (menuItemId: string) => void;
   updateQuantity: (menuItemId: string, quantity: number) => void;
@@ -42,6 +44,7 @@ export const useOrderStore = create<OrderState>((set, get) => ({
   orderId: null,
   orderNumber: null,
   tableId: null,
+  orderType: "DINE_IN",
   items: [],
   taxRate: 5,
   discount: 0,
@@ -51,6 +54,7 @@ export const useOrderStore = create<OrderState>((set, get) => ({
   setOrderId: (id) => set({ orderId: id }),
   setOrderNumber: (num) => set({ orderNumber: num }),
   setTableId: (id) => set({ tableId: id }),
+  setOrderType: (type) => set({ orderType: type }),
 
   addItem: (item) =>
     set((state) => {
@@ -115,6 +119,7 @@ export const useOrderStore = create<OrderState>((set, get) => ({
       orderId: order.id,
       orderNumber: order.orderNumber,
       tableId: order.tableId,
+      orderType: order.orderType || "DINE_IN",
       items,
       taxRate: parseFloat(String(order.tax)) || 5,
       discount: parseFloat(String(order.discount)) || 0,
@@ -128,6 +133,7 @@ export const useOrderStore = create<OrderState>((set, get) => ({
       orderId: null,
       orderNumber: null,
       tableId: null,
+      orderType: "DINE_IN",
       items: [],
       taxRate: 5,
       discount: 0,

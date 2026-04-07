@@ -1,14 +1,13 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Minus, Trash2, Printer } from "lucide-react";
+import { Plus, Minus, Trash2, Printer, UtensilsCrossed, ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
-import { formatCurrency, generateBillNumber } from "@/lib/utils";
+import { formatCurrency } from "@/lib/utils";
 import { useOrderStore } from "@/store/orderStore";
 
 interface Category {
@@ -32,31 +31,124 @@ interface TableData {
   status: string;
 }
 
+// Order type selection modal
+function OrderTypeModal({
+  tables,
+  onSelect,
+  onClose,
+}: {
+  tables: TableData[];
+  onSelect: (orderType: "DINE_IN" | "TAKE_AWAY", tableId: string | null) => void;
+  onClose: () => void;
+}) {
+  const [orderType, setOrderType] = useState<"DINE_IN" | "TAKE_AWAY">("DINE_IN");
+  const availableTables = tables.filter((t) => t.status === "AVAILABLE");
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="w-full max-w-md rounded-xl bg-background p-6 shadow-lg">
+        <h2 className="mb-4 text-lg font-bold">New Order</h2>
+
+        {/* Order type */}
+        <div className="mb-4 flex gap-3">
+          <button
+            onClick={() => setOrderType("DINE_IN")}
+            className={`flex-1 flex items-center justify-center gap-2 rounded-lg border px-4 py-3 text-sm font-medium transition ${
+              orderType === "DINE_IN"
+                ? "border-primary bg-primary/10 text-primary"
+                : "border-border bg-background text-muted-foreground hover:bg-muted"
+            }`}
+          >
+            <UtensilsCrossed size={18} />
+            Dine In
+          </button>
+          <button
+            onClick={() => setOrderType("TAKE_AWAY")}
+            className={`flex-1 flex items-center justify-center gap-2 rounded-lg border px-4 py-3 text-sm font-medium transition ${
+              orderType === "TAKE_AWAY"
+                ? "border-primary bg-primary/10 text-primary"
+                : "border-border bg-background text-muted-foreground hover:bg-muted"
+            }`}
+          >
+            <ShoppingBag size={18} />
+            Take Away
+          </button>
+        </div>
+
+        {/* Table selection for Dine-in */}
+        {orderType === "DINE_IN" && (
+          <div className="mb-4">
+            <label className="mb-2 block text-sm font-medium">Select Table</label>
+            <div className="grid grid-cols-3 gap-2 max-h-48 overflow-auto">
+              {availableTables.length === 0 ? (
+                <p className="col-span-3 text-center text-sm text-muted-foreground py-4">
+                  No tables available
+                </p>
+              ) : (
+                availableTables.map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => onSelect(orderType, t.id)}
+                    className="rounded-lg border border-border bg-background p-3 text-center text-sm font-medium hover:border-primary hover:bg-primary/5 transition"
+                  >
+                    Table {t.number}
+                    <span className="block text-xs text-muted-foreground font-normal">
+                      {t.capacity} seats
+                    </span>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Take-away doesn't need table */}
+        {orderType === "TAKE_AWAY" && (
+          <button
+            onClick={() => onSelect(orderType, null)}
+            className="w-full rounded-lg bg-primary px-4 py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition mb-4"
+          >
+            Create Take Away Order
+          </button>
+        )}
+
+        <div className="flex justify-end">
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function BillingPage() {
-  const router = useRouter();
   const [items, setItems] = useState<MenuItemData[]>([]);
   const [tables, setTables] = useState<TableData[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterCategory, setFilterCategory] = useState("");
   const [activeCategoryId, setActiveCategoryId] = useState("");
+  const [showOrderTypeModal, setShowOrderTypeModal] = useState(false);
 
   const {
     orderId,
     orderNumber,
+    tableId,
+    orderType,
     items: orderItems,
     taxRate,
     discount,
     setOrderId,
     setOrderNumber,
     setTableId,
+    setOrderType: storeSetOrderType,
     addItem,
     removeItem,
     incrementItem,
     decrementItem,
     setTaxRate,
     setDiscount,
-    setStatus,
     reset,
     subtotal,
     tax,
@@ -102,24 +194,45 @@ export default function BillingPage() {
     fetchData();
   }, []);
 
-  const handleNewOrder = useCallback(async () => {
+  // Opens the order type modal
+  const handleNewOrder = useCallback(() => {
     reset();
+    setShowOrderTypeModal(true);
+  }, [reset]);
+
+  // Called when user picks order type (and table if dine-in)
+  const handleOrderTypeSelect = useCallback(async (type: "DINE_IN" | "TAKE_AWAY", selectedTableId: string | null) => {
+    setShowOrderTypeModal(false);
+    storeSetOrderType(type);
+    setTableId(selectedTableId);
+
     try {
       const res = await fetch("/api/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ notes: "" }),
+        body: JSON.stringify({
+          orderType: type,
+          tableId: selectedTableId,
+          notes: "",
+        }),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to create order");
+      }
       const data = await res.json();
       setOrderId(data.order.id);
       setOrderNumber(data.order.orderNumber);
       setActiveCategoryId("");
-      toast.success(`Order #${data.order.orderNumber} created`);
-    } catch {
-      toast.error("Failed to create order");
+      const typeLabel = type === "DINE_IN" ? "Dine-in" : "Take-away";
+      const tableLabel = selectedTableId ? ` (Table ${tables.find((t) => t.id === selectedTableId)?.number})` : "";
+      toast.success(`Order #${data.order.orderNumber} created — ${typeLabel}${tableLabel}`);
+      // Refresh tables so occupied ones show correctly
+      fetchData();
+    } catch (e: any) {
+      toast.error(e.message || "Failed to create order");
     }
-  }, [reset, setOrderId, setOrderNumber]);
+  }, [storeSetOrderType, setTableId, setOrderId, setOrderNumber, tables]);
 
   const handleAddItem = useCallback(
     (item: MenuItemData) => {
@@ -142,7 +255,6 @@ export default function BillingPage() {
     if (orderItems.length === 0) return toast.error("Order is empty");
 
     try {
-      // Sync items to server
       for (const item of orderItems) {
         await fetch(`/api/orders/${orderId}/items`, {
           method: "POST",
@@ -154,7 +266,6 @@ export default function BillingPage() {
           }),
         });
       }
-
       toast.success("Order saved. You can continue adding items.");
     } catch {
       toast.error("Failed to save order");
@@ -167,7 +278,6 @@ export default function BillingPage() {
       if (orderItems.length === 0) return toast.error("Order is empty");
 
       try {
-        // First sync all items
         for (const item of orderItems) {
           await fetch(`/api/orders/${orderId}/items`, {
             method: "POST",
@@ -198,11 +308,12 @@ export default function BillingPage() {
         const data = await res.json();
         toast.success(`Bill ${data.bill.billNumber} generated!`);
         reset();
+        fetchData();
       } catch (e: any) {
         toast.error(e.message || "Failed to generate bill");
       }
     },
-    [orderId, orderItems, taxRate, discount, reset]
+    [orderId, orderItems, taxRate, discount, reset, fetchData]
   );
 
   const handlePrintBill = useCallback(async () => {
@@ -210,13 +321,11 @@ export default function BillingPage() {
       toast.error("No active order");
       return;
     }
-    // Fetch latest order data and print
     try {
       const res = await fetch(`/api/orders/${orderId}`);
       if (!res.ok) throw new Error();
       const data = await res.json();
 
-      // Create a print window
       const printWindow = window.open("", "_blank");
       if (!printWindow) return;
 
@@ -238,6 +347,7 @@ export default function BillingPage() {
         <body>
           <h2>RestoBill Restaurant</h2>
           <p class="center">Order #${data.order.orderNumber}</p>
+          <p class="center">${data.order.orderType === "DINE_IN" ? "Dine-in" : "Take Away"}${data.order.table ? " — Table " + data.order.table.number : ""}</p>
           <p class="center">${new Date().toLocaleString()}</p>
           <div class="line"></div>
           ${data.order.items
@@ -274,16 +384,26 @@ export default function BillingPage() {
     ? items.filter((i) => i.categoryId === filterCategory)
     : items;
 
+  const selectedTable = tables.find((t) => t.id === tableId);
+
   return (
     <div className="flex h-screen">
+      {/* Order type modal */}
+      {showOrderTypeModal && (
+        <OrderTypeModal
+          tables={tables}
+          onSelect={handleOrderTypeSelect}
+          onClose={() => {
+            setShowOrderTypeModal(false);
+          }}
+        />
+      )}
+
       {/* LEFT: Menu Grid */}
       <div className="flex-1 overflow-auto p-4">
         <div className="mb-4 flex items-center justify-between">
           <h1 className="text-xl font-bold">Billing</h1>
-          <Button
-            onClick={handleNewOrder}
-            className="flex items-center gap-2"
-          >
+          <Button onClick={handleNewOrder} className="flex items-center gap-2">
             <Plus size={16} />
             New Order
           </Button>
@@ -336,15 +456,13 @@ export default function BillingPage() {
                 key={item.id}
                 onClick={() => handleAddItem(item)}
                 disabled={!item.isAvailable || !orderId}
-                className={`flex flex-col items-center justify-center rounded-xl border p-4 min-h-[90px] text-left transition ${
+                className={`flex flex-col items-center justify-center rounded-xl border p-4 min-h-22.5 text-left transition ${
                   !item.isAvailable
                     ? "opacity-40 cursor-not-allowed bg-muted/50"
                     : "cursor-pointer hover:border-primary hover:bg-primary/5"
                 }`}
               >
-                <span className="text-sm font-medium leading-tight">
-                  {item.name}
-                </span>
+                <span className="text-sm font-medium leading-tight">{item.name}</span>
                 <span className="mt-1 text-xs text-muted-foreground">
                   Rs. {parseFloat(item.price).toFixed(2)}
                 </span>
@@ -361,23 +479,32 @@ export default function BillingPage() {
 
       {/* RIGHT: Order Summary */}
       <div className="w-96 flex flex-col border-l bg-background">
-        {/* Order header */}
-        <div className="flex-shrink-0 border-b px-4 py-3">
+        {/* Order header with type + table */}
+        <div className="shrink-0 border-b px-4 py-3">
           {orderId ? (
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Order</p>
-                <p className="text-lg font-bold">
-                  #{orderId ? orderNumber || "..." : "N/A"}
-                </p>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Order</p>
+                  <p className="text-lg font-bold">
+                    #{orderNumber || "..."}
+                  </p>
+                </div>
+                <Button variant="outline" size="sm" onClick={handleSaveOrder}>
+                  Save
+                </Button>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleSaveOrder}
-              >
-                Save
-              </Button>
+              <div className="flex gap-2 items-center">
+                <Badge
+                  variant={orderType === "DINE_IN" ? "default" : "secondary"}
+                  className={orderType === "DINE_IN" ? "bg-green-600 text-white" : ""}
+                >
+                  {orderType === "DINE_IN" ? "Dine In" : "Take Away"}
+                </Badge>
+                {orderType === "DINE_IN" && selectedTable && (
+                  <Badge variant="outline">Table {selectedTable.number}</Badge>
+                )}
+              </div>
             </div>
           ) : (
             <div className="text-center py-4 text-muted-foreground">
@@ -439,7 +566,7 @@ export default function BillingPage() {
         </div>
 
         {/* Totals */}
-        <div className="flex-shrink-0 border-t px-4 py-3 space-y-2">
+        <div className="shrink-0 border-t px-4 py-3 space-y-2">
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">Subtotal</span>
             <span className="font-medium">Rs. {formatCurrency(subtotal())}</span>
@@ -482,7 +609,7 @@ export default function BillingPage() {
         </div>
 
         {/* Payment buttons */}
-        <div className="flex-shrink-0 border-t p-4 space-y-2">
+        <div className="shrink-0 border-t p-4 space-y-2">
           <div className="grid grid-cols-3 gap-2">
             <button
               onClick={() => handleCheckout("CASH")}

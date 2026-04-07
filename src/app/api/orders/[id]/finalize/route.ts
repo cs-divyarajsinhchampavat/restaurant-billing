@@ -65,6 +65,14 @@ export async function POST(
       },
     });
 
+    // Release table back to AVAILABLE when Dine-in order is paid
+    if (newStatus === "PAID" && updatedOrder.tableId) {
+      await prisma.table.update({
+        where: { id: updatedOrder.tableId },
+        data: { status: "AVAILABLE" },
+      });
+    }
+
     return Response.json({
       order: {
         ...updatedOrder,

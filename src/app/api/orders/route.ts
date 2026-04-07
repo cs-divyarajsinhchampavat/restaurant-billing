@@ -38,10 +38,11 @@ export async function GET(request: NextRequest) {
 
 export async function POST(req: Request) {
   try {
-    const { tableId, notes } = await req.json();
+    const { tableId, notes, orderType } = await req.json();
     const order = await prisma.order.create({
       data: {
-        tableId: tableId || undefined,
+        tableId: orderType === "TAKE_AWAY" ? undefined : (tableId || undefined),
+        orderType: orderType || "DINE_IN",
         notes: notes || undefined,
         subtotal: 0,
         tax: 0,
@@ -50,6 +51,15 @@ export async function POST(req: Request) {
       },
       include: { table: true },
     });
+
+    // Mark table as OCCUPIED for Dine-in orders
+    if (orderType === "DINE_IN" && tableId) {
+      await prisma.table.update({
+        where: { id: tableId },
+        data: { status: "OCCUPIED" },
+      });
+    }
+
     return Response.json(
       {
         order: {
