@@ -34,6 +34,7 @@ interface MenuItemData {
 interface TableData {
   id: string;
   number: number;
+  capacity: number;
   status: string;
 }
 
