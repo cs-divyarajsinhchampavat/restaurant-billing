@@ -4,13 +4,22 @@ import { NextRequest } from "next/server";
 export async function GET(request: NextRequest) {
   try {
     const status = request.nextUrl.searchParams.get("status");
-    const date = request.nextUrl.searchParams.get("date");
+    const startDate = request.nextUrl.searchParams.get("startDate");
+    const endDate = request.nextUrl.searchParams.get("endDate");
 
     const where: any = {};
     if (status) where.status = status;
-    if (date) {
-      const d = new Date(date);
-      where.createdAt = { gte: d, lt: new Date(d.getTime() + 86400000) };
+    if (startDate || endDate) {
+      where.createdAt = {};
+      if (startDate) {
+        where.createdAt.gte = new Date(startDate);
+      }
+      if (endDate) {
+        // Set endDate to the end of that day (23:59:59.999)
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        where.createdAt.lte = end;
+      }
     }
 
     const orders = await prisma.order.findMany({
@@ -41,7 +50,7 @@ export async function POST(req: Request) {
     const { tableId, notes, orderType } = await req.json();
     const order = await prisma.order.create({
       data: {
-        tableId: orderType === "TAKE_AWAY" ? undefined : (tableId || undefined),
+        table: orderType === "TAKE_AWAY" ? undefined : (tableId ? { connect: { id: tableId } } : undefined),
         orderType: orderType || "DINE_IN",
         notes: notes || undefined,
         subtotal: 0,
@@ -72,7 +81,11 @@ export async function POST(req: Request) {
       },
       { status: 201 }
     );
-  } catch (error) {
-    return Response.json({ error: "Failed to create order" }, { status: 500 });
+  } catch (error: any) {
+    console.error("Order creation error:", error);
+    return Response.json(
+      { error: error.message || "Failed to create order" },
+      { status: 500 }
+    );
   }
 }

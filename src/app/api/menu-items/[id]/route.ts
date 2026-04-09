@@ -35,7 +35,14 @@ export async function PUT(
 
     const item = await prisma.menuItem.update({
       where: { id },
-      data: { name, description, price, categoryId, isAvailable, sortOrder },
+      data: {
+        name,
+        description,
+        price,
+        category: categoryId ? { connect: { id: categoryId } } : undefined,
+        isAvailable,
+        sortOrder,
+      },
     });
     return Response.json({ ...item, price: Number(item.price) });
   } catch (error) {

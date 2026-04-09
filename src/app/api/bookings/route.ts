@@ -39,7 +39,7 @@ export async function POST(req: Request) {
         guestName,
         guestPhone,
         guestCount,
-        tableId,
+        table: { connect: { id: tableId } },
         date: new Date(date),
         notes,
       },

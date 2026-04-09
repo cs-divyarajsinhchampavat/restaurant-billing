@@ -1,6 +1,7 @@
 import { create } from "zustand";
 
 export interface OrderItemData {
+  id: string;
   menuItemId: string;
   name: string;
   price: number;
@@ -68,7 +69,7 @@ export const useOrderStore = create<OrderState>((set, get) => ({
           ),
         };
       }
-      return { items: [...state.items, { ...item, quantity: 1 }] };
+      return { items: [...state.items, { ...item, id: crypto.randomUUID(), quantity: 1 }] };
     }),
 
   removeItem: (menuItemId) =>
@@ -109,6 +110,7 @@ export const useOrderStore = create<OrderState>((set, get) => ({
 
   loadFromOrder: (order) => {
     const items = order.items.map((item: any) => ({
+      id: item.id,
       menuItemId: item.menuItemId,
       name: item.menuItem?.name || "Unknown",
       price: parseFloat(String(item.unitPrice)) || 0,

@@ -39,7 +39,7 @@ export async function PUT(
         guestName,
         guestPhone,
         guestCount,
-        tableId,
+        table: tableId ? { connect: { id: tableId } } : undefined,
         date: date ? new Date(date) : undefined,
         notes,
         status,

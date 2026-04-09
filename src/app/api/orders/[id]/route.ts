@@ -45,12 +45,25 @@ export async function PUT(
 
     const order = await prisma.order.update({
       where: { id },
-      data: { status, tableId, notes },
+      data: {
+        status,
+        table: tableId ? { connect: { id: tableId } } : undefined,
+        notes,
+      },
       include: {
         table: true,
         items: { include: { menuItem: true } },
       },
     });
+
+    // Release table if order is cancelled
+    if (status === "CANCELLED" && order.tableId) {
+      await prisma.table.update({
+        where: { id: order.tableId },
+        data: { status: "AVAILABLE" },
+      });
+    }
+
     return Response.json({
       order: {
         ...order,

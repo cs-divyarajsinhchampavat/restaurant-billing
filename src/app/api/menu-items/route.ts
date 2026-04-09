@@ -34,7 +34,13 @@ export async function POST(req: Request) {
       );
     }
     const item = await prisma.menuItem.create({
-      data: { name, description, price, categoryId, sortOrder: sortOrder ?? 0 },
+      data: {
+        name,
+        description,
+        price,
+        category: { connect: { id: categoryId } },
+        sortOrder: sortOrder ?? 0,
+      },
     });
     return Response.json({ item: { ...item, price: Number(item.price) } }, { status: 201 });
   } catch (error) {

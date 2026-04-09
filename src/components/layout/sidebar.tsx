@@ -8,12 +8,14 @@ import {
   CalendarCheck,
   BookOpen,
   Table,
+  History,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/billing", label: "Billing", icon: Receipt },
+  { href: "/orders", label: "Order History", icon: History },
   { href: "/bookings", label: "Bookings", icon: CalendarCheck },
   { href: "/menu", label: "Menu", icon: BookOpen },
   { href: "/tables", label: "Tables", icon: Table },
